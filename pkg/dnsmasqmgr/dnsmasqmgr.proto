@@ -1,0 +1,38 @@
+// Copyright 2019 Francesco Romani
+// License: MIT
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.github.mojaves.dnsmasqmgr";
+option java_outer_classname = "DNSMasqMgrProto";
+
+package dnsmasqmgr;
+
+service DNSMasqManager {
+  rpc RequestAddress (AddressRequest) returns (AddressReply) {}
+  rpc LookupAddress (AddressRequest) returns (AddressReply) {}
+  rpc DeleteAddress (AddressRequest) returns (AddressReply) {}
+}
+
+enum Key {
+  HOSTNAME = 0;
+  MACADDR = 1;
+  IPADDR = 2;
+}
+
+message Address {
+  string hostname = 1;
+  string macaddr = 2;
+  string ipaddr = 3;
+}
+
+message AddressRequest {
+  Address addr = 1;
+  Key key = 2;
+}
+
+message AddressReply {
+  Address addr = 1;
+  int32 status = 2;
+}
