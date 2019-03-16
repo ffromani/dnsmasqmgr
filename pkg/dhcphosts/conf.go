@@ -19,8 +19,14 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// the package dhcphosts provides utilities to work with configuration in the dhcphosts
-// (see man 8 dnsmasq) format
+// The dhcphosts package provide utilities to work files in dhcphosts format
+// (see man 8 dnsmasq)
+// This package use naive linear search and no lookup optimizations (e.g. maps, skipslists).
+// Rationale:
+// - we expect to work with maximum ~1000 entries (*one* thousand, not thousand*S*)
+// - everything is in memory anyway
+// - linear search is simpler to implement/maintain
+
 package dhcphosts
 
 import (
@@ -40,6 +46,7 @@ var (
 	BadHWAddrFormat  error = errors.New("Malformed hardware address address")
 	BadIPFormat      error = errors.New("Malformed IP address")
 	BadBindingFormat error = errors.New("Malformed Binding Pair")
+	DuplicateFound   error = errors.New("Entry already found")
 )
 
 // Binding represents the binding between a MAC and an IP
@@ -84,8 +91,12 @@ func (b Binding) EqualIP(x net.IP) bool {
 }
 
 // Equal returns true if the Binding is equal to the argument, false otherwise
-func (b Binding) Equal(bb Binding) bool {
-	return b.EqualHW(bb.HW) && b.EqualIP(bb.IP)
+func (b Binding) Equal(x Binding) bool {
+	return b.EqualHW(x.HW) && b.EqualIP(x.IP)
+}
+
+func (b Binding) Duplicate(x Binding) bool {
+	return b.Equal(x)
 }
 
 // String converts the binding in its dhcphosts (man 8 dnsmasq) representation
@@ -98,7 +109,6 @@ type Conf struct {
 	lock sync.RWMutex
 	// linear search isn't O(1), but it is more than enough for the kind of load we expect
 	bindings []Binding
-	// to support faster delete. Not realley needed, but fun to have
 }
 
 // Len returns the number of configured Bindings
@@ -126,8 +136,19 @@ func (m *Conf) Add(b Binding) error {
 	return m.add(b)
 }
 
+func (m *Conf) duplicate(x Binding) *Binding {
+	for _, b := range m.bindings {
+		if b.Duplicate(x) {
+			return &b
+		}
+	}
+	return nil
+}
+
 func (m *Conf) add(b Binding) error {
-	// TODO: check dupes?
+	if x := m.duplicate(b); x != nil {
+		return fmt.Errorf("%s: %s", DuplicateFound, x)
+	}
 	m.bindings = append(m.bindings, b)
 	return nil
 }
