@@ -1,5 +1,5 @@
 # dnsmasqmgr
-dnsmasqmgr provides a HTTP endpoint to manage dnsmasqd lease
+dnsmasqmgr provides an endpoint to manage dnsmasqd lease
 
 ## Description
 `dnsmasqmgr` is a package that helps you query and manage the [dnsmasq](http://www.thekelleys.org.uk/dnsmasq/doc.html) dhcp host configuration
@@ -24,19 +24,24 @@ networks. *Use at your own risk*.
 The suggested setup is:
 1. create user and group for the `dnsmasqmgrd` service.
 ```bash
+
 ```
+
 2. create a directory like `/var/lib/dnsmasqmgr` which is *readable* by dnsmasqd and *writable only* by the user/group set previously.
 ```bash
 ```
+
 3. configure `dnsmasq` to to use `/var/lib/dnsmasqmgr/hostinfo` as `hostsfile`
 ```bash
 ```
+
 4. let `dnsmasqmgrd` run, using the provided systemd unit or any other mean
 5. let `dnsmasqreloadd` run, using the provided systemd unit or any other mean
-6. interact with `dnsmasqmgrd` using the HTTP API or using `dnsmasqmgr` go package or command line tool
+6. interact with `dnsmasqmgrd` using the API or using `dnsmasqmgr` go package or command line tool
 
-## HTTP API
-see `doc/api.md`
+## API
+see `pkg/dnsmasqmgr/dnsmasqmgr.proto`
 
-## Docker image
-WRITEME
+## Container image
+Not supported. Patches welcome.
+
