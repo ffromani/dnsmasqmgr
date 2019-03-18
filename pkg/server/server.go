@@ -24,23 +24,66 @@
 package server
 
 import (
-	"context"
+	"errors"
+	"os"
 
-	pb "github.com/mojaves/dnsmasqmgr/pkg/dnsmasqmgr"
-	"google.golang.org/grpc"
+	dhcpmap "github.com/mojaves/dnsmasqmgr/pkg/dhcphosts"
+	resolv "github.com/mojaves/dnsmasqmgr/pkg/etchosts"
+)
+
+var (
+	ErrNotSupported error = errors.New("Operation not supported")
+	ErrRequestData  error = errors.New("Malformed request")
+	ErrInvalidParam error = errors.New("Invalid parameter in request")
+	ErrMissingKey   error = errors.New("Missing key for research")
 )
 
 type DNSMasqMgr struct {
+	readOnly   bool
+	hostsPath  string
+	leasesPath string
+	addrMap    *dhcpmap.Conf
+	nameMap    *resolv.Conf
 }
 
-func (dmm *DNSMasqMgr) RequestAddress(context.Context, *AddressRequest) (*AddressReply, error) {
-	return nil, nil
+func NewDNSMasqMgrReadOnly(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
+	dmm, err := NewDNSMasqMgr(hostsPath, leasesPath)
+	if dmm != nil {
+		dmm.readOnly = true
+	}
+	return dmm, err
 }
 
-func (dmm *DNSMasqMgr) LookupAddress(context.Context, *AddressRequest) (*AddressReply, error) {
-	return nil, nil
+func NewDNSMasqMgr(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
+	var err error
+	dmm := DNSMasqMgr{
+		hostsPath:  hostsPath,
+		leasesPath: leasesPath,
+	}
+	hostsFile, err := os.Open(hostsPath)
+	if err != nil {
+		return nil, err
+	}
+	defer hostsFile.Close()
+	leasesFile, err := os.Open(leasesPath)
+	if err != nil {
+		return nil, err
+	}
+	defer leasesFile.Close()
+
+	dmm.nameMap, err = resolv.Parse(hostsFile)
+	if err != nil {
+		return nil, err
+	}
+
+	dmm.addrMap, err = dhcpmap.Parse(leasesFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dmm, nil
 }
 
-func (dmm *DNSMasqMgr) DeleteAddress(context.Context, *AddressRequest) (*AddressReply, error) {
-	return nil, nil
+func (dmm *DNSMasqMgr) Store() error {
+	return ErrNotSupported
 }

@@ -30,7 +30,6 @@ package etchosts
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -40,11 +39,12 @@ import (
 )
 
 var (
-	HWAddrNotFound   error = errors.New("hardware address not found")
-	IPAddrNotFound   error = errors.New("IP address not found")
-	BadHWAddrFormat  error = errors.New("Malformed hardware address address")
-	BadIPFormat      error = errors.New("Malformed IP address")
-	BadBindingFormat error = errors.New("Malformed Binding Pair")
+	ErrHWAddrNotFound   error = errors.New("hardware address not found")
+	ErrIPAddrNotFound   error = errors.New("IP address not found")
+	ErrBadHWAddrFormat  error = errors.New("Malformed hardware address address")
+	ErrBadIPFormat      error = errors.New("Malformed IP address")
+	ErrBadBindingFormat error = errors.New("Malformed Binding Pair")
+	ErrDuplicate        error = errors.New("Duplicated entry")
 )
 
 // Host represents a single entry in the /etc/hosts file
@@ -103,7 +103,7 @@ func (m *Conf) Len() int {
 	return len(m.hosts)
 }
 
-// String converts all the registered bindings in the Conf in content in etchosts (man 8 dnsmasq) representation
+// String converts all the registered hosts in the Conf in content in etchosts (man 8 dnsmasq) representation
 func (m *Conf) String() string {
 	var sb strings.Builder
 	m.lock.RLock()
@@ -123,11 +123,11 @@ func (m *Conf) duplicate(x Host) *Host {
 	return nil
 }
 
-func (m *Conf) add(b Binding) error {
-	if x := m.duplicate(b); x != nil {
-		return fmt.Errorf("%s: %s", DuplicateFound, x)
+func (m *Conf) add(h Host) error {
+	if x := m.duplicate(h); x != nil {
+		return fmt.Errorf("%s: %s", ErrDuplicate, x)
 	}
-	m.bindings = append(m.bindings, b)
+	m.hosts = append(m.hosts, h)
 	return nil
 }
 
