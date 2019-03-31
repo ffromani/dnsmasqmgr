@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -201,25 +202,41 @@ func (a byIP) Empty() interface{}          { return Binding{} }
 func (a byIP) Equal(x, y interface{}) bool { return x.(Binding).EqualIP(y.(Binding).IP) }
 
 func (m *Conf) GetByHWAddr(hw string) (Binding, error) {
+	var err error
+	var ret Binding
+
+	defer func() {
+		log.Printf("dhcphosts: GetByHWAddr(%s) -> (%s, %v)", hw, ret, err)
+	}()
+
 	x, err := net.ParseMAC(hw)
 	if err != nil {
 		return Binding{}, err
 	}
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	ret, err := find(byHW(m.bindings), Binding{HW: x}, HWAddrNotFound)
-	return ret.(Binding), err
+	retx, err := find(byHW(m.bindings), Binding{HW: x}, HWAddrNotFound)
+	ret = retx.(Binding)
+	return ret, err
 }
 
 func (m *Conf) GetByIP(ip string) (Binding, error) {
+	var err error
+	var ret Binding
+
+	defer func() {
+		log.Printf("dhcphosts: GetByIP(%s) -> (%s, %v)", ip, ret, err)
+	}()
+
 	x := net.ParseIP(ip)
 	if x == nil {
 		return Binding{}, BadIPFormat
 	}
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	ret, err := find(byIP(m.bindings), Binding{IP: x}, IPAddrNotFound)
-	return ret.(Binding), err
+	retx, err := find(byIP(m.bindings), Binding{IP: x}, IPAddrNotFound)
+	ret = retx.(Binding)
+	return ret, err
 }
 
 // Parse creates a Conf from a reader, which must return content in dhcphosts (man 8 dnsmasq) format

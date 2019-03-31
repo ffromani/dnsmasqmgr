@@ -52,7 +52,7 @@ func NewDNSMasqMgrReadOnly(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
 	if dmm != nil {
 		dmm.readOnly = true
 	}
-	log.Printf("Set up DNSMasqMgr in ReadOnly mode")
+	log.Printf("server: started in ReadOnly mode")
 	return dmm, err
 }
 
@@ -77,15 +77,15 @@ func NewDNSMasqMgr(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("parsed %d entries from '%v'", dmm.nameMap.Len(), hostsPath)
+	log.Printf("server: parsed %d entries from '%v'", dmm.nameMap.Len(), hostsPath)
 
 	dmm.addrMap, err = dhcpmap.Parse(leasesFile)
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("parsed %d entries from '%v'", dmm.addrMap.Len(), leasesPath)
+	log.Printf("server: parsed %d entries from '%v'", dmm.addrMap.Len(), leasesPath)
 
-	log.Printf("Set up DNSMasqMgr")
+	log.Printf("server: set up DNSMasqMgr")
 	return &dmm, nil
 }
 

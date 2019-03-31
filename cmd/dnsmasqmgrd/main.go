@@ -51,7 +51,7 @@ func main() {
 	if *hostsPath == "" || *leasesPath == "" {
 		log.Fatalf("missing configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
 	}
-	log.Printf("using configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
+	log.Printf("dnsmasqmgrd: using configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *iface, *port))
 	if err != nil {
@@ -76,6 +76,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
+
+	log.Printf("dnsmasqmgrd: ready ===")
 
 	serv := grpc.NewServer(opts...)
 	pb.RegisterDNSMasqManagerServer(serv, mgr)

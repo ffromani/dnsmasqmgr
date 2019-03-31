@@ -82,7 +82,13 @@ func ParseHost(addr, name string, aliases []string) (Host, error) {
 }
 
 func (h Host) String() string {
-	return fmt.Sprintf("%s\t%s%s", h.Address, h.CanonicalHostname, strings.Join(h.Aliases, " "))
+	sep := ""
+	aliases := ""
+	if len(h.Aliases) > 0 {
+		sep = "\t"
+		aliases = strings.Join(h.Aliases, " ")
+	}
+	return fmt.Sprintf("%s\t%s%s%s", h.Address, h.CanonicalHostname, sep, aliases)
 }
 
 func (h Host) Equal(x Host) bool {
@@ -140,7 +146,7 @@ func (m *Conf) String() string {
 func (m *Conf) duplicate(x Host) *Host {
 	for _, h := range m.hosts {
 		if what := h.findDuplicate(x); what != "" {
-			log.Printf("[%s] duplicates [%s] on %s", x, h, what)
+			log.Printf("etchosts: [%s] duplicates [%s] on %s", x, h, what)
 			return &h
 		}
 	}
@@ -165,7 +171,7 @@ func (m *Conf) GetByAddress(addr string) (Host, error) {
 	}
 
 	defer func() {
-		log.Printf("GetByAddress(%s) -> (%s, %v)", addr, ret, err)
+		log.Printf("etchosts: GetByAddress(%s) -> (%s, %v)", addr, ret, err)
 	}()
 	for _, h := range m.hosts {
 		if h.Address.Equal(ipAddr) {
@@ -181,7 +187,7 @@ func (m *Conf) GetByHostname(name string) (Host, error) {
 	var ret Host
 	var err error = ErrNotFoundHostname
 	defer func() {
-		log.Printf("GetByHostname(%s) -> (%s, %v)", name, ret, err)
+		log.Printf("etchosts: GetByHostname(%s) -> (%s, %v)", name, ret, err)
 	}()
 	for _, h := range m.hosts {
 		if h.CanonicalHostname == name {
@@ -206,13 +212,13 @@ func Parse(r io.Reader) (*Conf, error) {
 		line := s.Text()
 		h, err := ParseHostString(line)
 		if err != nil {
-			log.Printf("error parsing '%s': %v", line, err)
+			log.Printf("etchosts: error parsing '%s': %v", line, err)
 			continue
 		}
 
 		err = m.add(h)
 		if err != nil {
-			log.Printf("error adding '%s': %v", h, err)
+			log.Printf("etchosts: error adding '%s': %v", h, err)
 			continue
 		}
 	}
