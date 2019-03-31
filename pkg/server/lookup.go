@@ -65,7 +65,7 @@ func (dmm *DNSMasqMgr) lookupAddressByHostname(ctx context.Context, hostname str
 	}
 	binding, err := dmm.addrMap.GetByIP(reply.Addr.Ipaddr)
 	if err != nil {
-		return &reply, err
+		return &reply, nil
 	}
 	reply.Addr.Macaddr = binding.HW.String()
 	reply.Match = pb.Match_FULL
