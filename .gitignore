@@ -11,6 +11,8 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+tags
+
 # binaries
 cmd/dnsmasqmgr/dnsmasqmgr
 cmd/dnsmasqmgrd/dnsmasqmgrd

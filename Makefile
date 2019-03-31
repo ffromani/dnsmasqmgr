@@ -1,10 +1,15 @@
-all: dnsmasqmgr
+all: binaries
+	
+binaries: dnsmasqmgr dnsmasqmgrd
 
 clean:
 	rm -f cmd/dnsmasqmgr/dnsmasqmgr
 
 dnsmasqmgr: vendor
 	cd cmd/dnsmasqmgr && go build -v .
+
+dnsmasqmgrd: vendor
+	cd cmd/dnsmasqmgrd && go build -v .
 
 vendor:
 	dep ensure
