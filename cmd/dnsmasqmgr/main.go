@@ -116,13 +116,51 @@ func (ql *QueryLookup) RunWith(ctx context.Context, c pb.DNSMasqManagerClient) (
 	return addrToJson(r.Addr), err
 }
 
+type QueryRequest struct {
+	Name string
+	addr *pb.Address
+}
+
+func (qr *QueryRequest) String() string {
+	reqip := ""
+	if qr.addr.Ipaddr != "" {
+		reqip = fmt.Sprintf(", ip=%s", qr.addr.Ipaddr)
+	}
+	return fmt.Sprintf("%s(name=%s, mac=%s%s)", qr.Name, qr.addr.Hostname, qr.addr.Macaddr, reqip)
+}
+
+func (qr *QueryRequest) SetupArgs(args []string) error {
+	// args:
+	// [0]     [1]  [2]  [[3]]
+	// request host mac  [ip]
+	if len(args) < 3 {
+		return fmt.Errorf("not enough arguments: `%v`", args[1:])
+	}
+	qr.addr = &pb.Address{
+		Hostname: args[1],
+		Macaddr:  args[2],
+	}
+	if len(args) >= 4 {
+		qr.addr.Ipaddr = args[3]
+	}
+	return nil
+}
+
+func (qr *QueryRequest) RunWith(ctx context.Context, c pb.DNSMasqManagerClient) (string, error) {
+	r, err := c.RequestAddress(ctx, &pb.AddressRequest{
+		Addr: qr.addr,
+	})
+	// TODO: r.Code?
+	return addrToJson(r.Addr), err
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage %s [options] subcommand args:\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "subcommands:\n")
-		fmt.Fprintf(os.Stderr, "- lookup how what:\n")
+		fmt.Fprintf(os.Stderr, "- lookup <how> <what>\n")
 		fmt.Fprintf(os.Stderr, "  * how:  one of 'name', 'mac', 'ip'\n")
-		fmt.Fprintf(os.Stderr, "  * what: entity to lookup\n")
+		fmt.Fprintf(os.Stderr, "- request <hostname> <macaddr> [ipaddr]\n")
 		fmt.Fprintf(os.Stderr, "options:\n")
 		flag.PrintDefaults()
 	}
@@ -138,6 +176,8 @@ func main() {
 	switch args[0] {
 	case "lookup":
 		query = &QueryLookup{Name: args[0]}
+	case "request":
+		query = &QueryRequest{Name: args[0]}
 	default:
 		fmt.Fprintf(os.Stderr, "Unsupported subcommand %s\n", args[0])
 		os.Exit(1)
