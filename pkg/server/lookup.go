@@ -79,6 +79,25 @@ func (dmm *DNSMasqMgr) lookupAddressByMacaddr(ctx context.Context, macaddr strin
 	if macaddr == "" {
 		return &reply, ErrMissingKey
 	}
+
+	binding, err := dmm.addrMap.GetByHWAddr(macaddr)
+	if err != nil {
+		return &reply, err
+	}
+	reply = pb.AddressReply{
+		Addr: &pb.Address{
+			Macaddr: binding.HW.String(),
+			Ipaddr:  binding.IP.String(),
+		},
+		Match: pb.Match_PARTIAL,
+	}
+
+	host, err := dmm.nameMap.GetByAddress(reply.Addr.Ipaddr)
+	if err != nil {
+		return &reply, nil
+	}
+	reply.Addr.Hostname = host.CanonicalHostname
+	reply.Match = pb.Match_FULL
 	return &reply, nil
 }
 
@@ -89,5 +108,23 @@ func (dmm *DNSMasqMgr) lookupAddressByIpaddr(ctx context.Context, ipaddr string)
 	if ipaddr == "" {
 		return &reply, ErrMissingKey
 	}
+
+	host, err := dmm.nameMap.GetByAddress(ipaddr)
+	if err != nil {
+		return &reply, err
+	}
+	reply = pb.AddressReply{
+		Addr: &pb.Address{
+			Hostname: host.CanonicalHostname,
+			Ipaddr:   host.Address.String(),
+		},
+		Match: pb.Match_PARTIAL,
+	}
+	binding, err := dmm.addrMap.GetByIP(reply.Addr.Ipaddr)
+	if err != nil {
+		return &reply, nil
+	}
+	reply.Addr.Macaddr = binding.HW.String()
+	reply.Match = pb.Match_FULL
 	return &reply, nil
 }
