@@ -23,13 +23,12 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net"
 
+	flag "github.com/spf13/pflag"
 	"google.golang.org/grpc"
-
 	"google.golang.org/grpc/credentials"
 
 	pb "github.com/mojaves/dnsmasqmgr/pkg/dnsmasqmgr"
@@ -39,26 +38,28 @@ import (
 var (
 	readOnly   = flag.Bool("readonly", false, "DBs readonly mode")
 	hostsPath  = flag.String("hostspath", "", "The hosts db file")
-	leasesPath = flag.String("hostspath", "", "The dnsmasq leases file")
+	leasesPath = flag.String("leasespath", "", "The dnsmasq leases file")
 	certFile   = flag.String("certfile", "", "The TLS cert file")
 	keyFile    = flag.String("keyfile", "", "The TLS key file")
-	port       = flag.Int("port", 10000, "The server port")
+	iface      = flag.String("interface", "127.0.0.1", "The server listening interface")
+	port       = flag.Int("port", 50777, "The server port")
 )
 
 func main() {
 	flag.Parse()
 
 	if *hostsPath == "" || *leasesPath == "" {
-		log.Fatalf("missing configuration files: hosts=%v leases=%v", *hostsPath, *leasesPath)
+		log.Fatalf("missing configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
 	}
+	log.Printf("using configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", *port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *iface, *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	var opts []grpc.ServerOption
-	if *certFile != "" && *keyFile == "" {
+	if *certFile != "" && *keyFile != "" {
 		creds, err := credentials.NewServerTLSFromFile(*certFile, *keyFile)
 		if err != nil {
 			log.Fatalf("Failed to generate credentials %v", err)
