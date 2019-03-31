@@ -25,6 +25,7 @@ package server
 
 import (
 	"errors"
+	"log"
 	"os"
 
 	dhcpmap "github.com/mojaves/dnsmasqmgr/pkg/dhcphosts"
@@ -51,6 +52,7 @@ func NewDNSMasqMgrReadOnly(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
 	if dmm != nil {
 		dmm.readOnly = true
 	}
+	log.Printf("Set up DNSMasqMgr in ReadOnly mode")
 	return dmm, err
 }
 
@@ -75,12 +77,15 @@ func NewDNSMasqMgr(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("parsed %d entries from '%v'", dmm.nameMap.Len(), hostsPath)
 
 	dmm.addrMap, err = dhcpmap.Parse(leasesFile)
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("parsed %d entries from '%v'", dmm.addrMap.Len(), leasesPath)
 
+	log.Printf("Set up DNSMasqMgr")
 	return &dmm, nil
 }
 
