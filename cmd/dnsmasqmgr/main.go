@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,48 +40,67 @@ import (
 var (
 	certFile = flag.String("certfile", "", "The TLS cert file")
 	keyFile  = flag.String("keyfile", "", "The TLS key file")
-	timeout  = flag.Int("timeout", 1, "The connection timeout")
+	timeout  = flag.Int("timeout", 1, "The connection timeout (seconds)")
 	iface    = flag.String("interface", "127.0.0.1", "The server listening interface")
 	port     = flag.Int("port", 50777, "The server port")
 )
 
+type Address struct {
+	Name string `json:"name"`
+	Mac  string `json:"mac"`
+	IP   string `json:"ip"`
+}
+
 func addrToJson(a *pb.Address) string {
-	return fmt.Sprintf("{ \"name\": \"%s\", \"mac\": \"%s\", \"ip\": \"%s\" }", a.Hostname, a.Macaddr, a.Ipaddr)
+	b, err := json.Marshal(Address{
+		Name: a.Hostname,
+		Mac:  a.Macaddr,
+		IP:   a.Ipaddr,
+	})
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 type Queryable interface {
-	Name() string
+	String() string
 	SetupArgs(args []string) error
 	RunWith(ctx context.Context, c pb.DNSMasqManagerClient) (string, error)
 }
 
 type QueryLookup struct {
-	name string
+	Name string
 	key  pb.Key
 	addr *pb.Address
 }
 
-func (ql *QueryLookup) Name() string {
-	return ql.name
+func (ql *QueryLookup) String() string {
+	return fmt.Sprintf("%s(%s)", ql.Name, ql.addr)
 }
 
 func (ql *QueryLookup) SetupArgs(args []string) error {
 	// args:
-	// - lookup
-	// - how
-	// - what
-	ql.name = args[0]
+	// [0]     [1]  [2]
+	// lookup  how  what
 	if len(args) < 3 {
 		return fmt.Errorf("not enough arguments: `%v`", args[1:])
-	}
-	if len(args) > 3 {
-		return fmt.Errorf("too many arguments: `%v`", args[1:])
 	}
 	switch args[1] {
 	case "name":
 		ql.key = pb.Key_HOSTNAME
 		ql.addr = &pb.Address{
 			Hostname: args[2],
+		}
+	case "mac":
+		ql.key = pb.Key_MACADDR
+		ql.addr = &pb.Address{
+			Macaddr: args[2],
+		}
+	case "ip":
+		ql.key = pb.Key_IPADDR
+		ql.addr = &pb.Address{
+			Ipaddr: args[2],
 		}
 	default:
 		return fmt.Errorf("%s: unsupported method: %s", args[0], args[1])
@@ -117,7 +137,7 @@ func main() {
 	var query Queryable
 	switch args[0] {
 	case "lookup":
-		query = &QueryLookup{}
+		query = &QueryLookup{Name: args[0]}
 	default:
 		fmt.Fprintf(os.Stderr, "Unsupported subcommand %s\n", args[0])
 		os.Exit(1)
@@ -125,7 +145,7 @@ func main() {
 
 	err := query.SetupArgs(args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Cannot setup %s: %v\n", query.Name(), err)
+		fmt.Fprintf(os.Stderr, "Cannot setup %s: %v\n", query, err)
 		os.Exit(2)
 	}
 
@@ -155,7 +175,7 @@ func main() {
 
 	out, err := query.RunWith(ctx, c)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error performing: %s: %v\n", query.Name(), err)
+		fmt.Fprintf(os.Stderr, "Error performing: %s: %v\n", query, err)
 	}
 	fmt.Printf("%s\n", out)
 }
