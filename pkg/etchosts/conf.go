@@ -33,18 +33,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync"
 )
 
 var (
-	ErrHWAddrNotFound   error = errors.New("hardware address not found")
-	ErrIPAddrNotFound   error = errors.New("IP address not found")
 	ErrBadHWAddrFormat  error = errors.New("Malformed hardware address address")
 	ErrBadIPFormat      error = errors.New("Malformed IP address")
-	ErrBadBindingFormat error = errors.New("Malformed Binding Pair")
+	ErrBadEntryFormat   error = errors.New("Malformed entry")
 	ErrDuplicate        error = errors.New("Duplicated entry")
+	ErrNotFoundHostname error = errors.New("Hostname not found in the hostsfile")
+	ErrNotFoundAddress  error = errors.New("Address not found in the hostsfile")
 )
 
 // Host represents a single entry in the /etc/hosts file
@@ -55,15 +56,33 @@ type Host struct {
 }
 
 func ParseHostString(s string) (Host, error) {
-	return Host{}, nil
+	s = strings.Replace(s, "\t", " ", -1)
+	items := strings.Split(s, " ")
+	if len(items) < 2 {
+		return Host{}, ErrBadEntryFormat
+	}
+	var aliases []string
+	if len(items) > 2 {
+		aliases = items[2:]
+	}
+	return ParseHost(items[0], items[1], aliases)
 }
 
 func ParseHost(addr, name string, aliases []string) (Host, error) {
-	return Host{}, nil
+	h := Host{
+		Address:           net.ParseIP(addr),
+		CanonicalHostname: name,
+		Aliases:           aliases,
+	}
+	var err error
+	if h.Address == nil {
+		err = ErrBadIPFormat
+	}
+	return h, err
 }
 
 func (h Host) String() string {
-	return ""
+	return fmt.Sprintf("%s\t%s%s", h.Address, h.CanonicalHostname, strings.Join(h.Aliases, " "))
 }
 
 func (h Host) Equal(x Host) bool {
@@ -71,11 +90,15 @@ func (h Host) Equal(x Host) bool {
 }
 
 func (h Host) Duplicate(x Host) bool {
+	return h.findDuplicate(x) != ""
+}
+
+func (h Host) findDuplicate(x Host) string {
 	if h.CanonicalHostname == x.CanonicalHostname {
-		return true
+		return x.CanonicalHostname
 	}
 	if h.Address.Equal(x.Address) {
-		return true
+		return x.Address.String()
 	}
 	numAliases := len(h.Aliases)
 	if len(x.Aliases) < len(h.Aliases) {
@@ -83,10 +106,10 @@ func (h Host) Duplicate(x Host) bool {
 	}
 	for ix := 0; ix < numAliases; ix++ {
 		if h.Aliases[ix] == x.Aliases[ix] {
-			return true
+			return x.Aliases[ix]
 		}
 	}
-	return false
+	return ""
 }
 
 // Conf represents the configured Bindings
@@ -116,7 +139,8 @@ func (m *Conf) String() string {
 
 func (m *Conf) duplicate(x Host) *Host {
 	for _, h := range m.hosts {
-		if h.Duplicate(x) {
+		if what := h.findDuplicate(x); what != "" {
+			log.Printf("[%s] duplicates [%s] on %s", x, h, what)
 			return &h
 		}
 	}
@@ -128,15 +152,45 @@ func (m *Conf) add(h Host) error {
 		return fmt.Errorf("%s: %s", ErrDuplicate, x)
 	}
 	m.hosts = append(m.hosts, h)
+	log.Printf("etchosts: added [[%s]]", h)
 	return nil
 }
 
 func (m *Conf) GetByAddress(addr string) (Host, error) {
-	return Host{}, nil
+	var ret Host
+	var err error = ErrNotFoundAddress
+	var ipAddr = net.ParseIP(addr)
+	if ipAddr == nil {
+		return Host{}, ErrBadIPFormat
+	}
+
+	defer func() {
+		log.Printf("GetByAddress(%s) -> (%s, %v)", addr, ret, err)
+	}()
+	for _, h := range m.hosts {
+		if h.Address.Equal(ipAddr) {
+			ret = h
+			err = nil
+			break
+		}
+	}
+	return ret, err
 }
 
 func (m *Conf) GetByHostname(name string) (Host, error) {
-	return Host{}, nil
+	var ret Host
+	var err error = ErrNotFoundHostname
+	defer func() {
+		log.Printf("GetByHostname(%s) -> (%s, %v)", name, ret, err)
+	}()
+	for _, h := range m.hosts {
+		if h.CanonicalHostname == name {
+			ret = h
+			err = nil
+			break
+		}
+	}
+	return ret, err
 }
 
 func (m *Conf) GetByAlias(alias string) (Host, error) {
@@ -148,11 +202,19 @@ func Parse(r io.Reader) (*Conf, error) {
 	m := &Conf{}
 	s := bufio.NewScanner(r)
 	for s.Scan() {
-		b, err := ParseHostString(s.Text())
+		var err error
+		line := s.Text()
+		h, err := ParseHostString(line)
 		if err != nil {
-			return nil, err
+			log.Printf("error parsing '%s': %v", line, err)
+			continue
 		}
-		m.add(b)
+
+		err = m.add(h)
+		if err != nil {
+			log.Printf("error adding '%s': %v", h, err)
+			continue
+		}
 	}
 	return m, nil
 }
