@@ -43,6 +43,7 @@ var (
 	ErrBadHWAddrFormat  error = errors.New("Malformed hardware address address")
 	ErrBadIPFormat      error = errors.New("Malformed IP address")
 	ErrBadEntryFormat   error = errors.New("Malformed entry")
+	ErrMissingHostname  error = errors.New("Missing hostname")
 	ErrDuplicate        error = errors.New("Duplicated entry")
 	ErrNotFoundHostname error = errors.New("Hostname not found in the hostsfile")
 	ErrNotFoundAddress  error = errors.New("Address not found in the hostsfile")
@@ -121,8 +122,15 @@ func (h Host) findDuplicate(x Host) string {
 // Conf represents the configured Bindings
 type Conf struct {
 	lock sync.RWMutex
-	// linear search isn't O(1), but it is more than enough for the kind of load we expect
-	hosts []Host
+	// this is not really for efficiency, even though it's a nice plus,
+	// but rather  because Hostname is the key here.
+	hosts map[string]Host
+}
+
+func NewConf() *Conf {
+	return &Conf{
+		hosts: make(map[string]Host),
+	}
 }
 
 // Len returns the number of configured Bindings
@@ -157,9 +165,29 @@ func (m *Conf) add(h Host) error {
 	if x := m.duplicate(h); x != nil {
 		return fmt.Errorf("%s: %s", ErrDuplicate, x)
 	}
-	m.hosts = append(m.hosts, h)
+	m.hosts[h.CanonicalHostname] = h
 	log.Printf("etchosts: added [[%s]]", h)
 	return nil
+}
+
+func (m *Conf) Add(name, addr string, aliases []string) (Host, error, bool) {
+	if name == "" {
+		return Host{}, ErrMissingHostname, false
+	}
+	ret := Host{
+		CanonicalHostname: name,
+		Address:           net.ParseIP(addr),
+	}
+	if ret.Address == nil {
+		return ret, ErrBadIPFormat, false
+	}
+	for _, alias := range aliases {
+		ret.Aliases = append(ret.Aliases, alias)
+	}
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	err := m.add(ret)
+	return ret, err, err != nil
 }
 
 func (m *Conf) GetByAddress(addr string) (Host, error) {
@@ -167,7 +195,7 @@ func (m *Conf) GetByAddress(addr string) (Host, error) {
 	var err error = ErrNotFoundAddress
 	var ipAddr = net.ParseIP(addr)
 	if ipAddr == nil {
-		return Host{}, ErrBadIPFormat
+		return ret, ErrBadIPFormat
 	}
 
 	defer func() {
@@ -189,12 +217,9 @@ func (m *Conf) GetByHostname(name string) (Host, error) {
 	defer func() {
 		log.Printf("etchosts: GetByHostname(%s) -> (%s, %v)", name, ret, err)
 	}()
-	for _, h := range m.hosts {
-		if h.CanonicalHostname == name {
-			ret = h
-			err = nil
-			break
-		}
+	ret, ok := m.hosts[name]
+	if ok {
+		err = nil
 	}
 	return ret, err
 }
@@ -205,7 +230,7 @@ func (m *Conf) GetByAlias(alias string) (Host, error) {
 
 // Parse creates a Conf from a reader, which must return content in etchosts (man 5 hosts) format
 func Parse(r io.Reader) (*Conf, error) {
-	m := &Conf{}
+	m := NewConf()
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		var err error

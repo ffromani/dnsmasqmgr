@@ -42,12 +42,12 @@ import (
 )
 
 var (
-	HWAddrNotFound   error = errors.New("hardware address not found")
-	IPAddrNotFound   error = errors.New("IP address not found")
-	BadHWAddrFormat  error = errors.New("Malformed hardware address address")
-	BadIPFormat      error = errors.New("Malformed IP address")
-	BadBindingFormat error = errors.New("Malformed Binding Pair")
-	DuplicateFound   error = errors.New("Entry already found")
+	ErrHWAddrNotFound   error = errors.New("hardware address not found")
+	ErrIPAddrNotFound   error = errors.New("IP address not found")
+	ErrBadHWAddrFormat  error = errors.New("Malformed hardware address address")
+	ErrBadIPFormat      error = errors.New("Malformed IP address")
+	ErrBadBindingFormat error = errors.New("Malformed Binding Pair")
+	ErrDuplicateFound   error = errors.New("Entry already found")
 )
 
 // Binding represents the binding between a MAC and an IP
@@ -60,7 +60,7 @@ type Binding struct {
 func ParseBindingString(s string) (Binding, error) {
 	a := strings.Split(s, ",")
 	if len(a) != 2 {
-		return Binding{}, BadBindingFormat
+		return Binding{}, ErrBadBindingFormat
 	}
 	return ParseBinding(a[0], a[1])
 }
@@ -69,11 +69,11 @@ func ParseBindingString(s string) (Binding, error) {
 func ParseBinding(hw, ip string) (Binding, error) {
 	hwAddr, err := net.ParseMAC(hw)
 	if err != nil {
-		return Binding{}, BadHWAddrFormat
+		return Binding{}, ErrBadHWAddrFormat
 	}
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil {
-		return Binding{}, BadIPFormat
+		return Binding{}, ErrBadIPFormat
 	}
 	return Binding{
 		HW: hwAddr,
@@ -108,8 +108,15 @@ func (b Binding) String() string {
 // Conf represents the configured Bindings
 type Conf struct {
 	lock sync.RWMutex
-	// linear search isn't O(1), but it is more than enough for the kind of load we expect
-	bindings []Binding
+	// this is not really for efficiency, even though it's a nice plus,
+	// but rather  because MAC (as string) is the key here.
+	bindings map[string]Binding
+}
+
+func NewConf() *Conf {
+	return &Conf{
+		bindings: make(map[string]Binding),
+	}
 }
 
 // Len returns the number of configured Bindings
@@ -131,10 +138,22 @@ func (m *Conf) String() string {
 }
 
 // Add registers a new Binding
-func (m *Conf) Add(b Binding) error {
+func (m *Conf) Add(mac, ip string) (Binding, error, bool) {
+	hwAddr, err := net.ParseMAC(mac)
+	if err != nil {
+		return Binding{}, err, false
+	}
+	ret := Binding{
+		HW: hwAddr,
+		IP: net.ParseIP(ip),
+	}
+	if ret.IP == nil {
+		return ret, ErrBadIPFormat, false
+	}
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	return m.add(b)
+	err = m.add(ret)
+	return ret, err, err != nil
 }
 
 func (m *Conf) duplicate(x Binding) *Binding {
@@ -148,9 +167,9 @@ func (m *Conf) duplicate(x Binding) *Binding {
 
 func (m *Conf) add(b Binding) error {
 	if x := m.duplicate(b); x != nil {
-		return fmt.Errorf("%s: %s", DuplicateFound, x)
+		return fmt.Errorf("%s: %s", ErrDuplicateFound, x)
 	}
-	m.bindings = append(m.bindings, b)
+	m.bindings[b.HW.String()] = b
 	return nil
 }
 
@@ -158,70 +177,29 @@ func (m *Conf) add(b Binding) error {
 func (m *Conf) Delete(b Binding) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	var bindings []Binding
-	for _, bi := range m.bindings {
-		if bi.Equal(b) {
-			continue
-		}
-		bindings = append(bindings, bi)
-	}
-	m.bindings = bindings
+	delete(m.bindings, b.HW.String())
 	return nil
 }
 
-func find(data findable, x interface{}, err error) (interface{}, error) {
-	for i := 0; i < data.Len(); i++ {
-		bi := data.Get(i)
-		if data.Equal(bi, x) {
-			return bi, nil
-		}
-	}
-	return data.Empty(), err
-}
-
-// inspired by the sort package
-type findable interface {
-	Len() int
-	Get(i int) interface{}
-	Equal(a, b interface{}) bool
-	Empty() interface{}
-}
-
-type byHW []Binding
-
-func (a byHW) Len() int                    { return len(a) }
-func (a byHW) Get(i int) interface{}       { return a[i] }
-func (a byHW) Empty() interface{}          { return Binding{} }
-func (a byHW) Equal(x, y interface{}) bool { return x.(Binding).EqualHW(y.(Binding).HW) }
-
-type byIP []Binding
-
-func (a byIP) Len() int                    { return len(a) }
-func (a byIP) Get(i int) interface{}       { return a[i] }
-func (a byIP) Empty() interface{}          { return Binding{} }
-func (a byIP) Equal(x, y interface{}) bool { return x.(Binding).EqualIP(y.(Binding).IP) }
-
 func (m *Conf) GetByHWAddr(hw string) (Binding, error) {
-	var err error
+	err := ErrHWAddrNotFound
 	var ret Binding
 
 	defer func() {
 		log.Printf("dhcphosts: GetByHWAddr(%s) -> (%s, %v)", hw, ret, err)
 	}()
 
-	x, err := net.ParseMAC(hw)
-	if err != nil {
-		return Binding{}, err
-	}
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	retx, err := find(byHW(m.bindings), Binding{HW: x}, HWAddrNotFound)
-	ret = retx.(Binding)
+	ret, ok := m.bindings[hw]
+	if ok {
+		err = nil
+	}
 	return ret, err
 }
 
 func (m *Conf) GetByIP(ip string) (Binding, error) {
-	var err error
+	err := ErrIPAddrNotFound
 	var ret Binding
 
 	defer func() {
@@ -230,18 +208,23 @@ func (m *Conf) GetByIP(ip string) (Binding, error) {
 
 	x := net.ParseIP(ip)
 	if x == nil {
-		return Binding{}, BadIPFormat
+		return Binding{}, ErrBadIPFormat
 	}
 	m.lock.RLock()
 	defer m.lock.RUnlock()
-	retx, err := find(byIP(m.bindings), Binding{IP: x}, IPAddrNotFound)
-	ret = retx.(Binding)
+	for _, b := range m.bindings {
+		if b.EqualIP(x) {
+			ret = b
+			err = nil
+			break
+		}
+	}
 	return ret, err
 }
 
 // Parse creates a Conf from a reader, which must return content in dhcphosts (man 8 dnsmasq) format
 func Parse(r io.Reader) (*Conf, error) {
-	m := &Conf{}
+	m := NewConf()
 	s := bufio.NewScanner(r)
 	for s.Scan() {
 		b, err := ParseBindingString(s.Text())
