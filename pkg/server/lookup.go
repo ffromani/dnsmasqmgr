@@ -33,6 +33,8 @@ func (dmm *DNSMasqMgr) LookupAddress(ctx context.Context, req *pb.AddressRequest
 	if req == nil || req.Addr == nil {
 		return nil, ErrRequestData
 	}
+	dmm.lock.RLock()
+	defer dmm.lock.RUnlock()
 	switch req.Key {
 	case pb.Key_HOSTNAME:
 		return dmm.lookupAddressByHostname(ctx, req.Addr.Hostname)

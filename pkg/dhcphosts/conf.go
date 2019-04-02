@@ -38,7 +38,6 @@ import (
 	"log"
 	"net"
 	"strings"
-	"sync"
 )
 
 var (
@@ -107,7 +106,6 @@ func (b Binding) String() string {
 
 // Conf represents the configured Bindings
 type Conf struct {
-	lock sync.RWMutex
 	// this is not really for efficiency, even though it's a nice plus,
 	// but rather  because MAC (as string) is the key here.
 	bindings map[string]Binding
@@ -121,16 +119,12 @@ func NewConf() *Conf {
 
 // Len returns the number of configured Bindings
 func (m *Conf) Len() int {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
 	return len(m.bindings)
 }
 
 // String converts all the registered bindings in the Conf in content in dhcphosts (man 8 dnsmasq) representation
 func (m *Conf) String() string {
 	var sb strings.Builder
-	m.lock.RLock()
-	defer m.lock.RUnlock()
 	for _, bi := range m.bindings {
 		sb.WriteString(fmt.Sprintf("%s\n", bi.String()))
 	}
@@ -150,8 +144,6 @@ func (m *Conf) Add(mac, ip string) (Binding, error, bool) {
 	if ret.IP == nil {
 		return ret, ErrBadIPFormat, false
 	}
-	m.lock.Lock()
-	defer m.lock.Unlock()
 	err = m.add(ret)
 	return ret, err, err != nil
 }
@@ -175,8 +167,6 @@ func (m *Conf) add(b Binding) error {
 
 // Add forgets a Binding previously Add()ed
 func (m *Conf) Delete(b Binding) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
 	delete(m.bindings, b.HW.String())
 	return nil
 }
@@ -189,8 +179,6 @@ func (m *Conf) GetByHWAddr(hw string) (Binding, error) {
 		log.Printf("dhcphosts: GetByHWAddr(%s) -> (%s, %v)", hw, ret, err)
 	}()
 
-	m.lock.RLock()
-	defer m.lock.RUnlock()
 	ret, ok := m.bindings[hw]
 	if ok {
 		err = nil
@@ -210,8 +198,6 @@ func (m *Conf) GetByIP(ip string) (Binding, error) {
 	if x == nil {
 		return Binding{}, ErrBadIPFormat
 	}
-	m.lock.RLock()
-	defer m.lock.RUnlock()
 	for _, b := range m.bindings {
 		if b.EqualIP(x) {
 			ret = b

@@ -30,9 +30,13 @@ import (
 )
 
 func (dmm *DNSMasqMgr) RequestAddress(ctx context.Context, req *pb.AddressRequest) (*pb.StatusReply, error) {
+	dmm.lock.Lock()
+	defer dmm.lock.Unlock()
 	return nil, ErrNotSupported
 }
 
 func (dmm *DNSMasqMgr) DeleteAddress(ctx context.Context, req *pb.AddressRequest) (*pb.StatusReply, error) {
+	dmm.lock.Lock()
+	defer dmm.lock.Unlock()
 	return nil, ErrNotSupported
 }

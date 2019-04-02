@@ -27,6 +27,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"sync"
 
 	dhcpmap "github.com/mojaves/dnsmasqmgr/pkg/dhcphosts"
 	resolv "github.com/mojaves/dnsmasqmgr/pkg/etchosts"
@@ -43,6 +44,7 @@ type DNSMasqMgr struct {
 	readOnly   bool
 	hostsPath  string
 	leasesPath string
+	lock       sync.RWMutex
 	addrMap    *dhcpmap.Conf
 	nameMap    *resolv.Conf
 }

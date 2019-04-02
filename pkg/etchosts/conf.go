@@ -36,7 +36,6 @@ import (
 	"log"
 	"net"
 	"strings"
-	"sync"
 )
 
 var (
@@ -121,7 +120,6 @@ func (h Host) findDuplicate(x Host) string {
 
 // Conf represents the configured Bindings
 type Conf struct {
-	lock sync.RWMutex
 	// this is not really for efficiency, even though it's a nice plus,
 	// but rather  because Hostname is the key here.
 	hosts map[string]Host
@@ -135,16 +133,12 @@ func NewConf() *Conf {
 
 // Len returns the number of configured Bindings
 func (m *Conf) Len() int {
-	m.lock.RLock()
-	defer m.lock.RUnlock()
 	return len(m.hosts)
 }
 
 // String converts all the registered hosts in the Conf in content in etchosts (man 8 dnsmasq) representation
 func (m *Conf) String() string {
 	var sb strings.Builder
-	m.lock.RLock()
-	defer m.lock.RUnlock()
 	for _, h := range m.hosts {
 		sb.WriteString(fmt.Sprintf("%s\n", h.String()))
 	}
@@ -184,8 +178,6 @@ func (m *Conf) Add(name, addr string, aliases []string) (Host, error, bool) {
 	for _, alias := range aliases {
 		ret.Aliases = append(ret.Aliases, alias)
 	}
-	m.lock.Lock()
-	defer m.lock.Unlock()
 	err := m.add(ret)
 	return ret, err, err != nil
 }
