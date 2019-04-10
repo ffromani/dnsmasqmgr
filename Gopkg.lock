@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:618bae7b9eb578a232445439d65b90cb48e49a93aa9b67f5f7ecd8006465e16e"
+  name = "github.com/apcera/util"
+  packages = ["iprange"]
+  pruneopts = "UT"
+  revision = "346d8c10c6f817df60ff768b05ced4170d747180"
+  version = "release-3.0.0"
+
+[[projects]]
   digest = "1:239c4c7fd2159585454003d9be7207167970194216193a8a210b8d29576f19c9"
   name = "github.com/golang/protobuf"
   packages = [
@@ -14,6 +22,14 @@
   pruneopts = "UT"
   revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
   version = "v1.3.1"
+
+[[projects]]
+  digest = "1:c1b1102241e7f645bc8e0c22ae352e8f0dc6484b6cb4d132fa9f24174e0119e2"
+  name = "github.com/spf13/pflag"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "298182f68c66c05229eb03ac171abe6e309ee79a"
+  version = "v1.0.3"
 
 [[projects]]
   branch = "master"
@@ -113,8 +129,11 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/apcera/util/iprange",
     "github.com/golang/protobuf/proto",
+    "github.com/spf13/pflag",
     "google.golang.org/grpc",
+    "google.golang.org/grpc/credentials",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

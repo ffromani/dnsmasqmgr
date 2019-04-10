@@ -33,6 +33,10 @@
   name = "google.golang.org/grpc"
   version = "1.19.0"
 
+[[constraint]]
+ name= "github.com/apcera/util"
+ version = "release-3.0.0"
+
 [prune]
   go-tests = true
   unused-packages = true
