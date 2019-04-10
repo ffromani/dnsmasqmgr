@@ -151,7 +151,10 @@ func (qr *QueryRequest) RunWith(ctx context.Context, c pb.DNSMasqManagerClient) 
 		Addr: qr.addr,
 	})
 	// TODO: r.Code?
-	return addrToJson(r.Addr), err
+	if err != nil {
+		return "", err
+	}
+	return addrToJson(r.Addr), nil
 }
 
 func main() {
