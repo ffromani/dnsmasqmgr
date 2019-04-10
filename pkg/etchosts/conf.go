@@ -182,6 +182,12 @@ func (m *Conf) Add(name, addr string, aliases []string) (Host, error, bool) {
 	return ret, err, err != nil
 }
 
+func (m *Conf) Remove(name string) (Host, bool) {
+	ret, removed := m.hosts[name]
+	delete(m.hosts, name)
+	return ret, removed
+}
+
 func (m *Conf) GetByAddress(addr string) (Host, error) {
 	var ret Host
 	var err error = ErrNotFoundAddress
