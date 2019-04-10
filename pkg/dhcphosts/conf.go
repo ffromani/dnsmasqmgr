@@ -131,6 +131,23 @@ func (m *Conf) String() string {
 	return sb.String()
 }
 
+func (m *Conf) duplicate(x Binding) *Binding {
+	for _, b := range m.bindings {
+		if b.Duplicate(x) {
+			return &b
+		}
+	}
+	return nil
+}
+
+func (m *Conf) add(b Binding) error {
+	if x := m.duplicate(b); x != nil {
+		return fmt.Errorf("%s: %s", ErrDuplicateFound, x)
+	}
+	m.bindings[b.HW.String()] = b
+	return nil
+}
+
 // Add registers a new Binding
 func (m *Conf) Add(mac, ip string) (Binding, error, bool) {
 	hwAddr, err := net.ParseMAC(mac)
@@ -148,21 +165,10 @@ func (m *Conf) Add(mac, ip string) (Binding, error, bool) {
 	return ret, err, err != nil
 }
 
-func (m *Conf) duplicate(x Binding) *Binding {
-	for _, b := range m.bindings {
-		if b.Duplicate(x) {
-			return &b
-		}
-	}
-	return nil
-}
-
-func (m *Conf) add(b Binding) error {
-	if x := m.duplicate(b); x != nil {
-		return fmt.Errorf("%s: %s", ErrDuplicateFound, x)
-	}
-	m.bindings[b.HW.String()] = b
-	return nil
+func (m *Conf) Remove(mac string) (Binding, bool) {
+	ret, removed := m.bindings[mac]
+	delete(m.bindings, mac)
+	return ret, removed
 }
 
 // Add forgets a Binding previously Add()ed
