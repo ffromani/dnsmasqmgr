@@ -10,8 +10,8 @@ option java_outer_classname = "DNSMasqMgrProto";
 package dnsmasqmgr;
 
 service DNSMasqManager {
-  rpc RequestAddress (AddressRequest) returns (StatusReply) {}
-  rpc DeleteAddress (AddressRequest) returns (StatusReply) {}
+  rpc RequestAddress (AddressRequest) returns (AddressReply) {}
+  rpc DeleteAddress (AddressRequest) returns (AddressReply) {}
   rpc LookupAddress (AddressRequest) returns (AddressReply) {}
 }
 
@@ -41,16 +41,12 @@ message Address {
 }
 
 message AddressRequest {
-  Address addr = 1;
-  Key key = 2;
+  Key key = 1;
+  Address addr = 2;
 }
 
 message AddressReply {
-  Address addr = 1;
+  Key key = 1;
   Match match = 2;
+  Address addr = 3;
 }
-
-message StatusReply {
-  Address addr = 1;
-  Error code = 2;
-} 
