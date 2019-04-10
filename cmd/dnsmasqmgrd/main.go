@@ -37,6 +37,7 @@ import (
 
 var (
 	readOnly   = flag.Bool("readonly", false, "DBs readonly mode")
+	ipRange    = flag.String("iprange", "", "The IP auto-assignement range")
 	hostsPath  = flag.String("hostspath", "", "The hosts db file")
 	leasesPath = flag.String("leasespath", "", "The dnsmasq leases file")
 	certFile   = flag.String("certfile", "", "The TLS cert file")
@@ -48,6 +49,9 @@ var (
 func main() {
 	flag.Parse()
 
+	if *ipRange == "" {
+		log.Fatalf("ip range must be specified")
+	}
 	if *hostsPath == "" || *leasesPath == "" {
 		log.Fatalf("missing configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
 	}
@@ -69,9 +73,9 @@ func main() {
 
 	var mgr *server.DNSMasqMgr
 	if *readOnly {
-		mgr, err = server.NewDNSMasqMgrReadOnly(*hostsPath, *leasesPath)
+		mgr, err = server.NewDNSMasqMgrReadOnly(*ipRange, *hostsPath, *leasesPath)
 	} else {
-		mgr, err = server.NewDNSMasqMgr(*hostsPath, *leasesPath)
+		mgr, err = server.NewDNSMasqMgr(*ipRange, *hostsPath, *leasesPath)
 	}
 	if err != nil {
 		log.Fatalf("%v", err)
