@@ -29,8 +29,10 @@ import (
 	"os"
 	"sync"
 
-	dhcpmap "github.com/mojaves/dnsmasqmgr/pkg/dhcphosts"
-	resolv "github.com/mojaves/dnsmasqmgr/pkg/etchosts"
+	"github.com/apcera/util/iprange"
+
+	"github.com/mojaves/dnsmasqmgr/pkg/dhcphosts"
+	"github.com/mojaves/dnsmasqmgr/pkg/etchosts"
 )
 
 var (
@@ -45,12 +47,13 @@ type DNSMasqMgr struct {
 	hostsPath  string
 	leasesPath string
 	lock       sync.RWMutex
-	addrMap    *dhcpmap.Conf
-	nameMap    *resolv.Conf
+	addrMap    *dhcphosts.Conf
+	nameMap    *etchosts.Conf
+	ipAlloc    *iprange.IPRangeAllocator
 }
 
-func NewDNSMasqMgrReadOnly(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
-	dmm, err := NewDNSMasqMgr(hostsPath, leasesPath)
+func NewDNSMasqMgrReadOnly(iprangeStr, hostsPath, leasesPath string) (*DNSMasqMgr, error) {
+	dmm, err := NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath)
 	if dmm != nil {
 		dmm.readOnly = true
 	}
@@ -58,9 +61,15 @@ func NewDNSMasqMgrReadOnly(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
 	return dmm, err
 }
 
-func NewDNSMasqMgr(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
+func NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath string) (*DNSMasqMgr, error) {
 	var err error
+	ips, err := iprange.ParseIPRange(iprangeStr)
+	if err != nil {
+		return nil, err
+	}
+
 	dmm := DNSMasqMgr{
+		ipAlloc:    iprange.NewAllocator(ips),
 		hostsPath:  hostsPath,
 		leasesPath: leasesPath,
 	}
@@ -75,13 +84,13 @@ func NewDNSMasqMgr(hostsPath, leasesPath string) (*DNSMasqMgr, error) {
 	}
 	defer leasesFile.Close()
 
-	dmm.nameMap, err = resolv.Parse(hostsFile)
+	dmm.nameMap, err = etchosts.Parse(hostsFile)
 	if err != nil {
 		return nil, err
 	}
 	log.Printf("server: parsed %d entries from '%v'", dmm.nameMap.Len(), hostsPath)
 
-	dmm.addrMap, err = dhcpmap.Parse(leasesFile)
+	dmm.addrMap, err = dhcphosts.Parse(leasesFile)
 	if err != nil {
 		return nil, err
 	}

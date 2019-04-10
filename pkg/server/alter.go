@@ -25,17 +25,73 @@ package server
 
 import (
 	"context"
+	"log"
+	"net"
 
 	pb "github.com/mojaves/dnsmasqmgr/pkg/dnsmasqmgr"
 )
 
-func (dmm *DNSMasqMgr) RequestAddress(ctx context.Context, req *pb.AddressRequest) (*pb.StatusReply, error) {
-	dmm.lock.Lock()
-	defer dmm.lock.Unlock()
-	return nil, ErrNotSupported
+func handleDuplicate(ar *pb.AddressReply, key pb.Key, val string) {
+	switch ar.Match {
+	case pb.Match_NONE:
+		ar.Match = pb.Match_PARTIAL
+		ar.Key = key
+	case pb.Match_PARTIAL:
+		ar.Match = pb.Match_FULL
+	default:
+		// we are fine as we are
+	}
+	log.Printf("%s %s already present, skipped", pb.Key_name[int32(key)], val)
 }
 
-func (dmm *DNSMasqMgr) DeleteAddress(ctx context.Context, req *pb.AddressRequest) (*pb.StatusReply, error) {
+func (dmm *DNSMasqMgr) RequestAddress(ctx context.Context, req *pb.AddressRequest) (*pb.AddressReply, error) {
+	if req == nil || req.Addr == nil || req.Addr.Hostname == "" || req.Addr.Macaddr == "" {
+		return nil, ErrRequestData
+	}
+
+	dmm.lock.Lock()
+	defer dmm.lock.Unlock()
+
+	var err error
+	var ipAddr net.IP
+	if req.Addr.Ipaddr == "" {
+		ipAddr = dmm.ipAlloc.Allocate()
+		req.Addr.Ipaddr = ipAddr.String()
+	} else {
+		ipAddr = net.ParseIP(req.Addr.Ipaddr)
+		if ipAddr == nil {
+			return nil, err
+		}
+		dmm.ipAlloc.Reserve(ipAddr)
+	}
+
+	ret := pb.AddressReply{
+		Match: pb.Match_NONE,
+	}
+	var present bool
+	var aliases []string
+	_, err, present = dmm.nameMap.Add(req.Addr.Hostname, req.Addr.Ipaddr, aliases)
+	if err != nil {
+		return nil, err
+	}
+	if present {
+		handleDuplicate(&ret, pb.Key_HOSTNAME, req.Addr.Hostname)
+	}
+
+	_, err, present = dmm.addrMap.Add(req.Addr.Macaddr, req.Addr.Ipaddr)
+	if err != nil {
+		dmm.nameMap.Remove(req.Addr.Hostname)
+		return nil, err
+	}
+	if present {
+		handleDuplicate(&ret, pb.Key_MACADDR, req.Addr.Macaddr)
+	}
+
+	ret.Addr = req.Addr
+	return &ret, nil
+}
+
+func (dmm *DNSMasqMgr) DeleteAddress(ctx context.Context, req *pb.AddressRequest) (*pb.AddressReply, error) {
 	dmm.lock.Lock()
 	defer dmm.lock.Unlock()
 	return nil, ErrNotSupported
