@@ -24,6 +24,7 @@
 package server
 
 import (
+	"io/ioutil"
 	"log"
 )
 
@@ -48,7 +49,20 @@ func (dmm *DNSMasqMgr) storeLoop() {
 }
 
 func (dmm *DNSMasqMgr) Store() error {
+	var err error
+
 	dmm.lock.Lock()
 	defer dmm.lock.Unlock()
-	return ErrNotSupported
+
+	err = ioutil.WriteFile(dmm.hostsPath, []byte(dmm.nameMap.String()), dmm.hostsInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(dmm.leasesPath, []byte(dmm.addrMap.String()), dmm.leasesInfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

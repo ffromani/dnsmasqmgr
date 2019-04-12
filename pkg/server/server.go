@@ -46,12 +46,14 @@ var (
 type DNSMasqMgr struct {
 	readOnly   bool
 	hostsPath  string
+	hostsInfo  os.FileInfo
 	leasesPath string
+	leasesInfo os.FileInfo
 	flushChan  chan bool
 	doneChan   chan bool
 	lock       sync.RWMutex
-	addrMap    *dhcphosts.Conf
 	nameMap    *etchosts.Conf
+	addrMap    *dhcphosts.Conf
 	ipAlloc    *iprange.IPRangeAllocator
 	journal    *os.File
 	changes    *log.Logger
@@ -80,6 +82,15 @@ func NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath, journalPath string) (*DNSM
 		flushChan:  make(chan bool),
 		doneChan:   make(chan bool),
 	}
+	dmm.hostsInfo, err = os.Lstat(hostsPath)
+	if err != nil {
+		return nil, err
+	}
+	dmm.leasesInfo, err = os.Lstat(leasesPath)
+	if err != nil {
+		return nil, err
+	}
+
 	hostsFile, err := os.Open(hostsPath)
 	if err != nil {
 		return nil, err
