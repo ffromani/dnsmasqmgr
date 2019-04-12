@@ -1,0 +1,9 @@
+{
+   "iface" : "127.0.0.1",
+   "port" : 50777,
+   "keyfile" : "",
+   "certfile" : "",
+   "iprange" : "192.168.5.1-200",
+   "hostspath" : "tests/data/var/lib/dnsmasqmgr/hosts",
+   "leasespath" : "tests/data/var/lib/dnsmasqmgr/dhcphosts"
+}

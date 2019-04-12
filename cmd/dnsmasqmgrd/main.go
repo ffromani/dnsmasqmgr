@@ -23,9 +23,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 
 	flag "github.com/spf13/pflag"
 	"google.golang.org/grpc"
@@ -35,47 +38,116 @@ import (
 	"github.com/mojaves/dnsmasqmgr/pkg/server"
 )
 
-var (
-	readOnly   = flag.Bool("readonly", false, "DBs readonly mode")
-	ipRange    = flag.String("iprange", "", "The IP auto-assignement range")
-	hostsPath  = flag.String("hostspath", "", "The hosts db file")
-	leasesPath = flag.String("leasespath", "", "The dnsmasq leases file")
-	certFile   = flag.String("certfile", "", "The TLS cert file")
-	keyFile    = flag.String("keyfile", "", "The TLS key file")
-	iface      = flag.String("interface", "127.0.0.1", "The server listening interface")
-	port       = flag.Int("port", 50777, "The server port")
+const (
+	DefaultIface string = "127.0.0.1"
+	DefaultPort  int    = 50777
 )
 
+var (
+	readOnly = flag.Bool("readonly", false, "DBs readonly mode")
+	iface    = flag.String("interface", DefaultIface, "The server listening interface")
+	port     = flag.Int("port", DefaultPort, "The server port")
+	makeConf = flag.Bool("makeconf", false, "Create template configuration and exit")
+)
+
+type Config struct {
+	IPRange    string `json:"iprange"`
+	HostsPath  string `json:"hostspath"`
+	LeasesPath string `json:"leasespath"`
+	CertFile   string `json:"certfile"`
+	KeyFile    string `json:"keyfile"`
+	Iface      string `json:"iface"`
+	Port       int    `json:"port"`
+}
+
+func DefaultConfig() *Config {
+	return &Config{
+		Iface: DefaultIface,
+		Port:  DefaultPort,
+	}
+}
+
+func ParseConfig(path string) (*Config, error) {
+	fh, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	cfg := Config{}
+	dec := json.NewDecoder(fh)
+	dec.Decode(&cfg)
+	return &cfg, nil
+}
+
+func (cfg *Config) Check() error {
+	if cfg.IPRange == "" {
+		return fmt.Errorf("ip range must be specified")
+	}
+	if cfg.HostsPath == "" || cfg.LeasesPath == "" {
+		return fmt.Errorf("missing configuration files: hosts=[%v] leases=[%v]", cfg.HostsPath, cfg.LeasesPath)
+	}
+	return nil
+}
+
+func setupTLS(cfg *Config) ([]grpc.ServerOption, error) {
+	var err error
+	var opts []grpc.ServerOption
+	if cfg.CertFile != "" && cfg.KeyFile != "" {
+		creds, err := credentials.NewServerTLSFromFile(cfg.CertFile, cfg.KeyFile)
+		if err == nil {
+			opts = []grpc.ServerOption{grpc.Creds(creds)}
+		}
+	}
+	return opts, err
+}
+
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "usage: %s [options] [config.json]\n", filepath.Base(os.Args[0]))
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
-	if *ipRange == "" {
-		log.Fatalf("ip range must be specified")
-	}
-	if *hostsPath == "" || *leasesPath == "" {
-		log.Fatalf("missing configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
-	}
-	log.Printf("dnsmasqmgrd: using configuration files: hosts=[%v] leases=[%v]", *hostsPath, *leasesPath)
+	var err error
+	var conf *Config
 
-	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", *iface, *port))
+	if *makeConf {
+		conf = DefaultConfig()
+		enc := json.NewEncoder(os.Stdout)
+		enc.Encode(conf)
+		os.Exit(0)
+	}
+
+	args := flag.Args()
+	if len(args) >= 1 {
+		conf, err = ParseConfig(args[0])
+		if err != nil {
+			log.Fatalf("error parsing the configuration %s: %v", args[0], err)
+		}
+	} else {
+		conf = DefaultConfig()
+	}
+	err = conf.Check()
+	if err != nil {
+		log.Fatalf("configuration error: %v", err)
+	}
+	log.Printf("dnsmasqmgrd: using configuration files: hosts=[%v] leases=[%v]", conf.HostsPath, conf.LeasesPath)
+
+	opts, err := setupTLS(conf)
+	if err != nil {
+		log.Fatalf("Failed to generate credentials %v", err)
+	}
+
+	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d", conf.Iface, conf.Port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	var opts []grpc.ServerOption
-	if *certFile != "" && *keyFile != "" {
-		creds, err := credentials.NewServerTLSFromFile(*certFile, *keyFile)
-		if err != nil {
-			log.Fatalf("Failed to generate credentials %v", err)
-		}
-		opts = []grpc.ServerOption{grpc.Creds(creds)}
-	}
-
 	var mgr *server.DNSMasqMgr
 	if *readOnly {
-		mgr, err = server.NewDNSMasqMgrReadOnly(*ipRange, *hostsPath, *leasesPath)
+		mgr, err = server.NewDNSMasqMgrReadOnly(conf.IPRange, conf.HostsPath, conf.LeasesPath)
 	} else {
-		mgr, err = server.NewDNSMasqMgr(*ipRange, *hostsPath, *leasesPath)
+		mgr, err = server.NewDNSMasqMgr(conf.IPRange, conf.HostsPath, conf.LeasesPath)
 	}
 	if err != nil {
 		log.Fatalf("%v", err)
