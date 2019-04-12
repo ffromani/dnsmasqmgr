@@ -17,3 +17,5 @@ tags
 cmd/dnsmasqmgr/dnsmasqmgr
 cmd/dnsmasqmgrd/dnsmasqmgrd
 cmd/dnsmasqreloadd/dnsmasqreloadd
+
+tests/data/journal.json

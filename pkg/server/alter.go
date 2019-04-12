@@ -116,10 +116,12 @@ func (dmm *DNSMasqMgr) RequestAddress(ctx context.Context, req *pb.AddressReques
 	entry, err := json.Marshal(FromAddressRequest("add", req))
 	if err != nil {
 		log.Printf("cannot add to journal: %v", err)
-		// intentionalty do NOT abort
+		// intentionally do NOT abort
 	} else {
 		dmm.changes.Printf("%s", string(entry))
 	}
+	defer dmm.requestStore()
+
 	ret.Addr = req.Addr
 	return &ret, nil
 }

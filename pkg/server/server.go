@@ -47,6 +47,8 @@ type DNSMasqMgr struct {
 	readOnly   bool
 	hostsPath  string
 	leasesPath string
+	flushChan  chan bool
+	doneChan   chan bool
 	lock       sync.RWMutex
 	addrMap    *dhcphosts.Conf
 	nameMap    *etchosts.Conf
@@ -75,6 +77,8 @@ func NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath, journalPath string) (*DNSM
 		ipAlloc:    iprange.NewAllocator(ips),
 		hostsPath:  hostsPath,
 		leasesPath: leasesPath,
+		flushChan:  make(chan bool),
+		doneChan:   make(chan bool),
 	}
 	hostsFile, err := os.Open(hostsPath)
 	if err != nil {
@@ -111,17 +115,19 @@ func NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath, journalPath string) (*DNSM
 		log.Printf("server: NOT logging changes")
 	}
 
+	go dmm.storeLoop()
+	log.Printf("server: started storing loop")
+
 	log.Printf("server: set up DNSMasqMgr")
 	return &dmm, nil
 }
 
 func (dmm *DNSMasqMgr) Close() error {
+	dmm.flushChan <- false
+	<-dmm.doneChan
+
 	if dmm.journal == nil {
 		return nil
 	}
 	return dmm.journal.Close()
-}
-
-func (dmm *DNSMasqMgr) Store() error {
-	return ErrNotSupported
 }
