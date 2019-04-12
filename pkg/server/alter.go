@@ -25,11 +25,37 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net"
 
 	pb "github.com/mojaves/dnsmasqmgr/pkg/dnsmasqmgr"
 )
+
+type JournalAddr struct {
+	Hostname string `json:"hostname"`
+	Macaddr  string `json:"mac"`
+	Ipaddr   string `json:"ip"`
+}
+
+type JournalEntry struct {
+	Action  string      `json:"action"`
+	Address JournalAddr `json:"address"`
+}
+
+func (ja *JournalAddr) FromAddressRequest(req *pb.AddressRequest) {
+	ja.Hostname = req.Addr.Hostname
+	ja.Macaddr = req.Addr.Macaddr
+	ja.Ipaddr = req.Addr.Ipaddr
+}
+
+func FromAddressRequest(action string, req *pb.AddressRequest) *JournalEntry {
+	je := JournalEntry{
+		Action: action,
+	}
+	je.Address.FromAddressRequest(req)
+	return &je
+}
 
 func handleDuplicate(ar *pb.AddressReply, key pb.Key, val string) {
 	switch ar.Match {
@@ -87,6 +113,13 @@ func (dmm *DNSMasqMgr) RequestAddress(ctx context.Context, req *pb.AddressReques
 		handleDuplicate(&ret, pb.Key_MACADDR, req.Addr.Macaddr)
 	}
 
+	entry, err := json.Marshal(FromAddressRequest("add", req))
+	if err != nil {
+		log.Printf("cannot add to journal: %v", err)
+		// intentionalty do NOT abort
+	} else {
+		dmm.changes.Printf("%s", string(entry))
+	}
 	ret.Addr = req.Addr
 	return &ret, nil
 }

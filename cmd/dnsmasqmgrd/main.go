@@ -51,13 +51,14 @@ var (
 )
 
 type Config struct {
-	IPRange    string `json:"iprange"`
-	HostsPath  string `json:"hostspath"`
-	LeasesPath string `json:"leasespath"`
-	CertFile   string `json:"certfile"`
-	KeyFile    string `json:"keyfile"`
-	Iface      string `json:"iface"`
-	Port       int    `json:"port"`
+	IPRange     string `json:"iprange"`
+	HostsPath   string `json:"hostspath"`
+	LeasesPath  string `json:"leasespath"`
+	CertFile    string `json:"certfile"`
+	KeyFile     string `json:"keyfile"`
+	Iface       string `json:"iface"`
+	Port        int    `json:"port"`
+	JournalPath string `json:"journalpath"`
 }
 
 func DefaultConfig() *Config {
@@ -147,7 +148,7 @@ func main() {
 	if *readOnly {
 		mgr, err = server.NewDNSMasqMgrReadOnly(conf.IPRange, conf.HostsPath, conf.LeasesPath)
 	} else {
-		mgr, err = server.NewDNSMasqMgr(conf.IPRange, conf.HostsPath, conf.LeasesPath)
+		mgr, err = server.NewDNSMasqMgr(conf.IPRange, conf.HostsPath, conf.LeasesPath, conf.JournalPath)
 	}
 	if err != nil {
 		log.Fatalf("%v", err)

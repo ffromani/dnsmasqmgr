@@ -25,6 +25,7 @@ package server
 
 import (
 	"errors"
+	"io/ioutil"
 	"log"
 	"os"
 	"sync"
@@ -50,10 +51,12 @@ type DNSMasqMgr struct {
 	addrMap    *dhcphosts.Conf
 	nameMap    *etchosts.Conf
 	ipAlloc    *iprange.IPRangeAllocator
+	journal    *os.File
+	changes    *log.Logger
 }
 
 func NewDNSMasqMgrReadOnly(iprangeStr, hostsPath, leasesPath string) (*DNSMasqMgr, error) {
-	dmm, err := NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath)
+	dmm, err := NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath, "")
 	if dmm != nil {
 		dmm.readOnly = true
 	}
@@ -61,7 +64,7 @@ func NewDNSMasqMgrReadOnly(iprangeStr, hostsPath, leasesPath string) (*DNSMasqMg
 	return dmm, err
 }
 
-func NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath string) (*DNSMasqMgr, error) {
+func NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath, journalPath string) (*DNSMasqMgr, error) {
 	var err error
 	ips, err := iprange.ParseIPRange(iprangeStr)
 	if err != nil {
@@ -96,8 +99,27 @@ func NewDNSMasqMgr(iprangeStr, hostsPath, leasesPath string) (*DNSMasqMgr, error
 	}
 	log.Printf("server: parsed %d entries from '%v'", dmm.addrMap.Len(), leasesPath)
 
+	if journalPath != "" {
+		dmm.journal, err = os.Create(journalPath)
+		if err != nil {
+			return nil, err
+		}
+		dmm.changes = log.New(dmm.journal, "", log.LstdFlags)
+		log.Printf("server: logging changes on %v", journalPath)
+	} else {
+		dmm.changes = log.New(ioutil.Discard, "", log.LstdFlags)
+		log.Printf("server: NOT logging changes")
+	}
+
 	log.Printf("server: set up DNSMasqMgr")
 	return &dmm, nil
+}
+
+func (dmm *DNSMasqMgr) Close() error {
+	if dmm.journal == nil {
+		return nil
+	}
+	return dmm.journal.Close()
 }
 
 func (dmm *DNSMasqMgr) Store() error {

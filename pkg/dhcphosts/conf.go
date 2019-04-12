@@ -96,7 +96,7 @@ func (b Binding) Equal(x Binding) bool {
 }
 
 func (b Binding) Duplicate(x Binding) bool {
-	return b.Equal(x)
+	return b.EqualHW(x.HW)
 }
 
 // String converts the binding in its dhcphosts (man 8 dnsmasq) representation
@@ -145,6 +145,7 @@ func (m *Conf) add(b Binding) error {
 		return fmt.Errorf("%s: %s", ErrDuplicateFound, x)
 	}
 	m.bindings[b.HW.String()] = b
+	log.Printf("dhcphosts: added [[%s]]", b)
 	return nil
 }
 
