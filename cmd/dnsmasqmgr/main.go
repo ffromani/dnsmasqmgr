@@ -71,48 +71,51 @@ type Queryable interface {
 
 type QueryLookup struct {
 	Name string
-	key  pb.Key
-	addr *pb.Address
+	req  *pb.AddressRequest
 }
 
 func (ql *QueryLookup) String() string {
-	return fmt.Sprintf("%s(%s)", ql.Name, ql.addr)
+	return fmt.Sprintf("%s(%s)", ql.Name, ql.req.Addr)
 }
 
-func (ql *QueryLookup) SetupArgs(args []string) error {
+func AddressRequestFromArgs(args []string) (*pb.AddressRequest, error) {
 	// args:
-	// [0]     [1]  [2]
-	// lookup  how  what
+	// [0]       [1]  [2]
+	// <action>  how  what
 	if len(args) < 3 {
-		return fmt.Errorf("not enough arguments: `%v`", args[1:])
+		return nil, fmt.Errorf("not enough arguments: `%v`", args[1:])
 	}
+	req := pb.AddressRequest{}
 	switch args[1] {
 	case "name":
-		ql.key = pb.Key_HOSTNAME
-		ql.addr = &pb.Address{
+		req.Key = pb.Key_HOSTNAME
+		req.Addr = &pb.Address{
 			Hostname: args[2],
 		}
 	case "mac":
-		ql.key = pb.Key_MACADDR
-		ql.addr = &pb.Address{
+		req.Key = pb.Key_MACADDR
+		req.Addr = &pb.Address{
 			Macaddr: args[2],
 		}
 	case "ip":
-		ql.key = pb.Key_IPADDR
-		ql.addr = &pb.Address{
+		req.Key = pb.Key_IPADDR
+		req.Addr = &pb.Address{
 			Ipaddr: args[2],
 		}
 	default:
-		return fmt.Errorf("%s: unsupported method: %s", args[0], args[1])
+		return nil, fmt.Errorf("%s: unsupported method: %s", args[0], args[1])
 	}
-	return nil
+	return &req, nil
+}
+
+func (ql *QueryLookup) SetupArgs(args []string) error {
+	var err error
+	ql.req, err = AddressRequestFromArgs(args)
+	return err
 }
 
 func (ql *QueryLookup) RunWith(ctx context.Context, c pb.DNSMasqManagerClient) (string, error) {
-	r, err := c.LookupAddress(ctx, &pb.AddressRequest{
-		Addr: ql.addr,
-		Key:  ql.key,
-	})
+	r, err := c.LookupAddress(ctx, ql.req)
 	return addrToJson(r.Addr), err
 }
 
@@ -157,13 +160,34 @@ func (qr *QueryRequest) RunWith(ctx context.Context, c pb.DNSMasqManagerClient) 
 	return addrToJson(r.Addr), nil
 }
 
+type QueryDelete struct {
+	Name string
+	req  *pb.AddressRequest
+}
+
+func (ql *QueryDelete) String() string {
+	return fmt.Sprintf("%s(%s)", ql.Name, ql.req.Addr)
+}
+
+func (ql *QueryDelete) SetupArgs(args []string) error {
+	var err error
+	ql.req, err = AddressRequestFromArgs(args)
+	return err
+}
+
+func (ql *QueryDelete) RunWith(ctx context.Context, c pb.DNSMasqManagerClient) (string, error) {
+	r, err := c.DeleteAddress(ctx, ql.req)
+	return addrToJson(r.Addr), err
+}
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage %s [options] subcommand args:\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "subcommands:\n")
+		fmt.Fprintf(os.Stderr, "- request <hostname> <macaddr> [ipaddr]\n")
+		fmt.Fprintf(os.Stderr, "- delete <how> <what>\n")
 		fmt.Fprintf(os.Stderr, "- lookup <how> <what>\n")
 		fmt.Fprintf(os.Stderr, "  * how:  one of 'name', 'mac', 'ip'\n")
-		fmt.Fprintf(os.Stderr, "- request <hostname> <macaddr> [ipaddr]\n")
 		fmt.Fprintf(os.Stderr, "options:\n")
 		flag.PrintDefaults()
 	}
@@ -181,6 +205,8 @@ func main() {
 		query = &QueryLookup{Name: args[0]}
 	case "request":
 		query = &QueryRequest{Name: args[0]}
+	case "delete":
+		query = &QueryDelete{Name: args[0]}
 	default:
 		fmt.Fprintf(os.Stderr, "Unsupported subcommand %s\n", args[0])
 		os.Exit(1)
