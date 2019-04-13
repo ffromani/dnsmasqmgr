@@ -43,17 +43,17 @@ type JournalEntry struct {
 	Address JournalAddr `json:"address"`
 }
 
-func (ja *JournalAddr) FromAddressRequest(req *pb.AddressRequest) {
-	ja.Hostname = req.Addr.Hostname
-	ja.Macaddr = req.Addr.Macaddr
-	ja.Ipaddr = req.Addr.Ipaddr
+func (ja *JournalAddr) FromAddress(addr *pb.Address) {
+	ja.Hostname = addr.Hostname
+	ja.Macaddr = addr.Macaddr
+	ja.Ipaddr = addr.Ipaddr
 }
 
-func FromAddressRequest(action string, req *pb.AddressRequest) *JournalEntry {
+func FromAddress(action string, addr *pb.Address) *JournalEntry {
 	je := JournalEntry{
 		Action: action,
 	}
-	je.Address.FromAddressRequest(req)
+	je.Address.FromAddress(addr)
 	return &je
 }
 
@@ -113,13 +113,7 @@ func (dmm *DNSMasqMgr) RequestAddress(ctx context.Context, req *pb.AddressReques
 		handleDuplicate(&ret, pb.Key_MACADDR, req.Addr.Macaddr)
 	}
 
-	entry, err := json.Marshal(FromAddressRequest("add", req))
-	if err != nil {
-		log.Printf("cannot add to journal: %v", err)
-		// intentionally do NOT abort
-	} else {
-		dmm.changes.Printf("%s", string(entry))
-	}
+	dmm.toJournal("add", req.Addr)
 	defer dmm.requestStore()
 
 	ret.Addr = req.Addr
@@ -127,7 +121,29 @@ func (dmm *DNSMasqMgr) RequestAddress(ctx context.Context, req *pb.AddressReques
 }
 
 func (dmm *DNSMasqMgr) DeleteAddress(ctx context.Context, req *pb.AddressRequest) (*pb.AddressReply, error) {
+	ret, err := dmm.LookupAddress(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
 	dmm.lock.Lock()
 	defer dmm.lock.Unlock()
-	return nil, ErrNotSupported
+
+	dmm.addrMap.Remove(ret.Addr.Macaddr)
+	dmm.nameMap.Remove(ret.Addr.Hostname)
+
+	dmm.toJournal("del", ret.Addr)
+	defer dmm.requestStore()
+
+	return ret, nil
+}
+
+func (dmm *DNSMasqMgr) toJournal(action string, req *pb.Address) {
+	entry, err := json.Marshal(FromAddress(action, req))
+	if err != nil {
+		log.Printf("cannot add to journal: %v", err)
+		// intentionally do NOT abort
+	} else {
+		dmm.changes.Printf("%s", string(entry))
+	}
 }

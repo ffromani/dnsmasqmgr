@@ -185,6 +185,7 @@ func (m *Conf) Add(name, addr string, aliases []string) (Host, error, bool) {
 func (m *Conf) Remove(name string) (Host, bool) {
 	ret, removed := m.hosts[name]
 	delete(m.hosts, name)
+	log.Printf("etchosts: removed [[%s]] -> %v", ret, removed)
 	return ret, removed
 }
 

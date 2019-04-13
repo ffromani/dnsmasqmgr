@@ -169,13 +169,8 @@ func (m *Conf) Add(mac, ip string) (Binding, error, bool) {
 func (m *Conf) Remove(mac string) (Binding, bool) {
 	ret, removed := m.bindings[mac]
 	delete(m.bindings, mac)
+	log.Printf("dhcphosts: removed [[%s]] -> %v", ret, removed)
 	return ret, removed
-}
-
-// Add forgets a Binding previously Add()ed
-func (m *Conf) Delete(b Binding) error {
-	delete(m.bindings, b.HW.String())
-	return nil
 }
 
 func (m *Conf) GetByHWAddr(hw string) (Binding, error) {
