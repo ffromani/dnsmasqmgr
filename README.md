@@ -1,5 +1,5 @@
 # dnsmasqmgr
-dnsmasqmgr provides an endpoint to manage dnsmasqd lease
+dnsmasqmgr provides an endpoint to manage dnsmasq's DNS and DHCP lease services
 
 ## Description
 `dnsmasqmgr` is a package that helps you query and manage the [dnsmasq](http://www.thekelleys.org.uk/dnsmasq/doc.html) dhcp host configuration
@@ -7,8 +7,8 @@ dnsmasqmgr provides an endpoint to manage dnsmasqd lease
 
 The key components are:
 - `dnsmasqmgrd` is the cornerstone server which providess a HTTP endpoint to query and modify the lease configuration file.
-- `dnsmasqreloadd` is an utility service that makes `dnsmasq` reload the configuration once changes. It's the only componet that requires system privileges
 - `dnsmasqmgr` is both a `golang` package and a command line utility to interact with `dnsmasqmgrd` across a LAN
+- `dnsmasqreloadd` is an utility service that makes `dnsmasq` reload the configuration once changes. It's the only component that requires system privileges
 
 ## License/Copyright
 (C) 2019 Francesco Romani - write me @gmail
@@ -24,16 +24,28 @@ networks. *Use at your own risk*.
 The suggested setup is:
 1. create user and group for the `dnsmasqmgrd` service.
 ```bash
-
+useradd -c "dnsmasqmgr" -d /var/lib/dnsmasqmgr/ -M -r -s /sbin/nologin dnsmasqmgr
 ```
+`helpers/mkuser.sh` automates this step for you.
 
 2. create a directory like `/var/lib/dnsmasqmgr` which is *readable* by dnsmasqd and *writable only* by the user/group set previously.
 ```bash
+mkdir -p /var/lib/dnsmasqmgr/conf.d/hosts.d
+mkdir -p /var/lib/dnsmasqmgr/conf.d/dhcp.d
+chown -R dnsmasqmgr:dnsmasqmgr /var/lib/dnsmasqmgr
+find /var/lib/dnsmasqmgr -type d | xargs chmod 0755
+find /var/lib/dnsmasqmgr -type f | xargs chmod 0644
 ```
+`helpers/mktree.sh` automates this step for you.
 
-3. configure `dnsmasq` to to use `/var/lib/dnsmasqmgr/hostinfo` as `hostsfile`
+3. configure `dnsmasq` to integrate with `dnsmasqmgrd`. Highlight of the needed options
 ```bash
+addn-hosts=/etc/hosts.d
+addn-hosts=/var/lib/dnsmasqmgr/conf.d/hosts.d
+dhcp-hostsfile=/var/lib/dnsmasqmgr/conf.d/dhcp.d/leases
+dhcp-range=192.168.1.2,192.168.1.128,12h
 ```
+Note the difference: we use `addn-hosts` but `dhcp-hostsfile`
 
 4. let `dnsmasqmgrd` run, using the provided systemd unit or any other mean
 5. let `dnsmasqreloadd` run, using the provided systemd unit or any other mean
@@ -44,4 +56,3 @@ see `pkg/dnsmasqmgr/dnsmasqmgr.proto`
 
 ## Container image
 Not supported. Patches welcome.
-
