@@ -32,75 +32,18 @@ import (
 
 	flag "github.com/spf13/pflag"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	pb "github.com/mojaves/dnsmasqmgr/pkg/dnsmasqmgr"
 	"github.com/mojaves/dnsmasqmgr/pkg/server"
-)
-
-const (
-	DefaultIface string = "127.0.0.1"
-	DefaultPort  int    = 50777
+	"github.com/mojaves/dnsmasqmgr/pkg/server/config"
 )
 
 var (
 	readOnly = flag.Bool("readonly", false, "DBs readonly mode")
-	iface    = flag.String("interface", DefaultIface, "The server listening interface")
-	port     = flag.Int("port", DefaultPort, "The server port")
+	iface    = flag.String("interface", config.DefaultIface, "The server listening interface")
+	port     = flag.Int("port", config.DefaultPort, "The server port")
 	makeConf = flag.Bool("makeconf", false, "Create template configuration and exit")
 )
-
-type Config struct {
-	IPRange     string `json:"iprange"`
-	HostsPath   string `json:"hostspath"`
-	LeasesPath  string `json:"leasespath"`
-	CertFile    string `json:"certfile"`
-	KeyFile     string `json:"keyfile"`
-	Iface       string `json:"iface"`
-	Port        int    `json:"port"`
-	JournalPath string `json:"journalpath"`
-}
-
-func DefaultConfig() *Config {
-	return &Config{
-		Iface: DefaultIface,
-		Port:  DefaultPort,
-	}
-}
-
-func ParseConfig(path string) (*Config, error) {
-	fh, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer fh.Close()
-	cfg := Config{}
-	dec := json.NewDecoder(fh)
-	dec.Decode(&cfg)
-	return &cfg, nil
-}
-
-func (cfg *Config) Check() error {
-	if cfg.IPRange == "" {
-		return fmt.Errorf("ip range must be specified")
-	}
-	if cfg.HostsPath == "" || cfg.LeasesPath == "" {
-		return fmt.Errorf("missing configuration files: hosts=[%v] leases=[%v]", cfg.HostsPath, cfg.LeasesPath)
-	}
-	return nil
-}
-
-func setupTLS(cfg *Config) ([]grpc.ServerOption, error) {
-	var err error
-	var opts []grpc.ServerOption
-	if cfg.CertFile != "" && cfg.KeyFile != "" {
-		creds, err := credentials.NewServerTLSFromFile(cfg.CertFile, cfg.KeyFile)
-		if err == nil {
-			opts = []grpc.ServerOption{grpc.Creds(creds)}
-		}
-	}
-	return opts, err
-}
 
 func main() {
 	flag.Usage = func() {
@@ -110,10 +53,9 @@ func main() {
 	flag.Parse()
 
 	var err error
-	var conf *Config
+	conf := config.Default()
 
 	if *makeConf {
-		conf = DefaultConfig()
 		enc := json.NewEncoder(os.Stdout)
 		enc.Encode(conf)
 		os.Exit(0)
@@ -121,20 +63,19 @@ func main() {
 
 	args := flag.Args()
 	if len(args) >= 1 {
-		conf, err = ParseConfig(args[0])
+		conf, err = config.ParseFile(args[0])
 		if err != nil {
 			log.Fatalf("error parsing the configuration %s: %v", args[0], err)
 		}
-	} else {
-		conf = DefaultConfig()
 	}
+
 	err = conf.Check()
 	if err != nil {
 		log.Fatalf("configuration error: %v", err)
 	}
 	log.Printf("dnsmasqmgrd: using configuration files: hosts=[%v] leases=[%v]", conf.HostsPath, conf.LeasesPath)
 
-	opts, err := setupTLS(conf)
+	opts, err := conf.SetupTLS()
 	if err != nil {
 		log.Fatalf("Failed to generate credentials %v", err)
 	}
