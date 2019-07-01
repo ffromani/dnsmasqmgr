@@ -33,33 +33,33 @@ func TestBindingParseError(t *testing.T) {
 	var err error
 
 	_, err = ParseBindingString("")
-	if err != BadBindingFormat {
+	if err != ErrBadBindingFormat {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	_, err = ParseBindingString("01:23:45:67:89:ab")
-	if err != BadBindingFormat {
+	if err != ErrBadBindingFormat {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	_, err = ParseBindingString("1.1.1.1")
-	if err != BadBindingFormat {
+	if err != ErrBadBindingFormat {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	// legal in dnsmasq.conf, but unsupported yet
 	_, err = ParseBindingString("01:23:45:67:89:ab,1.1.1.1,extra")
-	if err != BadBindingFormat {
+	if err != ErrBadBindingFormat {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	_, err = ParseBindingString("malformed_mac,1.1.1.1")
-	if err != BadHWAddrFormat {
+	if err != ErrBadHWAddrFormat {
 		t.Errorf("unexpected error: %v", err)
 	}
 
 	_, err = ParseBindingString("01:23:45:67:89:ab,malformed_IP")
-	if err != BadIPFormat {
+	if err != ErrBadIPFormat {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -108,11 +108,11 @@ func TestConfEmpty(t *testing.T) {
 	}
 	var err error
 	_, err = c.GetByIP("1.1.1.1")
-	if err != IPAddrNotFound {
+	if err != ErrIPAddrNotFound {
 		t.Errorf("unexpected error: %v", err)
 	}
 	_, err = c.GetByHWAddr("01:23:45:67:89:ab")
-	if err != HWAddrNotFound {
+	if err != ErrHWAddrNotFound {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
