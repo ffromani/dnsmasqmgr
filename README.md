@@ -38,6 +38,10 @@ find /var/lib/dnsmasqmgr -type f | xargs chmod 0644
 ```
 `helpers/mktree.sh` automates this step for you.
 
+2.1. fix SELinux permissions (optional)
+
+TODO
+
 3. configure `dnsmasq` to integrate with `dnsmasqmgrd`. Highlight of the needed options
 ```bash
 addn-hosts=/etc/hosts.d
